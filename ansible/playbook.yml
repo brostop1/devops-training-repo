@@ -6,8 +6,6 @@
   vars:
     deploy_dir: /tmp/flask-app
     app_port: 5000
-    # Use true to auto-install Docker on remote Linux servers.
-    # Keep false for local WSL/Mac where Docker can come from Docker Desktop.
     install_docker: false
 
   tasks:
