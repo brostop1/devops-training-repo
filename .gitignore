@@ -4,3 +4,16 @@ venv/
 .venv/
 .env
 env/
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor/OS files
+.idea/
+.vscode/
+.DS_Store
+
+# Local logs
+*.log
