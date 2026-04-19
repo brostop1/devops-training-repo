@@ -1,22 +1,98 @@
 ---
-- name: Minimal local Ansible test
-  hosts: local
+- name: Деплой Flask-приложения через Docker Compose
+  hosts: local:app_servers
   gather_facts: true
 
+  vars:
+    deploy_dir: /tmp/flask-app
+    app_port: 5000
+    # Use true to auto-install Docker on remote Linux servers.
+    # Keep false for local WSL/Mac where Docker can come from Docker Desktop.
+    install_docker: false
+
   tasks:
-    - name: Ping localhost
+    - name: Проверка доступности хоста
       ansible.builtin.ping:
 
-    - name: Show gathered facts example
-      ansible.builtin.debug:
-        msg: "Hostname={{ ansible_facts['hostname'] }}, OS={{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+    - name: Установка Docker на Debian/Ubuntu (опционально)
+      become: true
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      when:
+        - install_docker
+        - ansible_os_family == "Debian"
 
-    - name: Check docker CLI availability (optional)
-      ansible.builtin.command: docker --version
-      register: docker_version
+    - name: Запуск и включение службы Docker (если ставим через playbook)
+      become: true
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+      when: install_docker
+
+    - name: Проверка доступности Docker
+      ansible.builtin.command: docker info
       changed_when: false
-      failed_when: false
 
-    - name: Print docker version result
+    - name: Создание каталога деплоя
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Копирование Dockerfile
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../Dockerfile"
+        dest: "{{ deploy_dir }}/Dockerfile"
+        mode: "0644"
+
+    - name: Копирование файла docker-compose
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../docker-compose.yml"
+        dest: "{{ deploy_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Копирование исходного кода приложения
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../app/"
+        dest: "{{ deploy_dir }}/app/"
+        mode: preserve
+
+    - name: Проверка, занят ли целевой порт другим контейнером
+      ansible.builtin.command: docker ps --filter "publish={{ app_port }}" --format "{{'{{.Names}}'}}"
+      register: containers_on_port
+      changed_when: false
+
+    - name: Прервать выполнение, если порт уже занят
+      ansible.builtin.fail:
+        msg: >-
+          Порт {{ app_port }} уже занят контейнером(ами): {{ containers_on_port.stdout_lines | join(', ') }}.
+          Остановите/удалите их или запустите playbook с другим портом, например: -e app_port=5001.
+      when: containers_on_port.stdout | length > 0
+
+    - name: Сборка и запуск контейнера
+      ansible.builtin.command: docker compose up -d --build
+      environment:
+        APP_PORT: "{{ app_port | string }}"
+      args:
+        chdir: "{{ deploy_dir }}"
+      register: compose_up
+      changed_when: "'Started' in compose_up.stdout or 'Recreated' in compose_up.stdout or 'Creating' in compose_up.stdout or 'Building' in compose_up.stdout"
+
+    - name: Ожидание готовности эндпоинта /health
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ app_port }}/health"
+        method: GET
+        status_code: 200
+      register: health
+      retries: 12
+      delay: 5
+      until: health.status == 200
+
+    - name: Вывод адреса для проверки
       ansible.builtin.debug:
-        msg: "{{ docker_version.stdout | default('docker not found') }}"
+        msg: "Приложение запущено на {{ inventory_hostname }}. Проверка: http://{{ ansible_host | default('127.0.0.1') }}:{{ app_port }}/health"
