@@ -1,5 +1,14 @@
 # DevOps training — Flask + Docker + Ansible
 
+**Предварительно (Ubuntu / WSL):** зависимости ставятся в каталог **`.venv`** (так обходится PEP 668 — системный Python «externally managed»). Нужны `python3` и пакет **`python3-venv`**:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3-venv
+```
+
+После `make install` используйте интерпретатор `.venv/bin/python` или по-прежнему команды `make run` / `make test`.
+
 Краткие команды из корня репозитория. Полный список целей Makefile:
 
 ```bash
@@ -13,7 +22,7 @@ make install
 make run
 ```
 
-Вручную:
+Вручную (после `python3 -m venv .venv` и `source .venv/bin/activate`):
 
 ```bash
 pip install -r app/requirements.txt
@@ -45,17 +54,16 @@ make test
 Вручную:
 
 ```bash
-PYTHONPATH=. pytest app/tests/ -v
+PYTHONPATH=. .venv/bin/python -m pytest app/tests -v
 ```
 
 ## Линт
 
 ```bash
-pip install ruff   # один раз, если ещё не стоит
 make lint
 ```
 
-Проверяются Bash-скрипты (`shellcheck`) и код в `app/` (`ruff` или `flake8`).
+Проверяются Bash-скрипты (`shellcheck`) и код в `app/` (`ruff` ставится в `.venv` при `make install`).
 
 ## Диагностика сервера
 

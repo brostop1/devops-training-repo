@@ -2,31 +2,36 @@
 
 export PYTHONPATH := $(CURDIR)
 
+VENV := $(CURDIR)/.venv
+PY := $(VENV)/bin/python
+PIP := $(VENV)/bin/pip
+
 .PHONY: help install lint test run docker-up docker-down diagnose ansible-ping ansible-local ansible-deploy
 
 help: ## Показать все команды
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' Makefile | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-install: ## Установить зависимости Python
-	python3 -m pip install --upgrade pip
-	python3 -m pip install -r app/requirements.txt
-
-lint: ## Проверка кода: ruff или flake8 (Python), shellcheck (Bash)
-	shellcheck scripts/*.sh
-	@if command -v ruff >/dev/null 2>&1; then \
-		ruff check app; \
-	elif command -v flake8 >/dev/null 2>&1; then \
-		flake8 app; \
-	else \
-		echo "Установите ruff или flake8: pip install ruff"; \
+install: ## Создать .venv и установить зависимости (обходит PEP 668 на Ubuntu/WSL)
+	@command -v python3 >/dev/null || { echo "Нужен python3"; exit 1; }
+	@python3 -c "import venv" 2>/dev/null || { \
+		echo "Нет модуля venv. Установите:"; \
+		echo "  sudo apt-get update && sudo apt-get install -y python3-venv"; \
 		exit 1; \
-	fi
+	}
+	@test -d "$(VENV)" || python3 -m venv "$(VENV)"
+	$(PIP) install --upgrade pip
+	$(PIP) install -r app/requirements.txt
+	$(PIP) install ruff
 
-test: ## Запустить тесты
-	python3 -m pytest app/tests -v
+lint: install ## Проверка кода: ruff (Python), shellcheck (Bash)
+	shellcheck scripts/*.sh
+	$(PY) -m ruff check app
 
-run: ## Локальный запуск Flask (dev-сервер)
-	python3 app/main.py
+test: install ## Запустить тесты
+	$(PY) -m pytest app/tests -v
+
+run: install ## Локальный запуск Flask (dev-сервер)
+	$(PY) app/main.py
 
 docker-up: ## Поднять стек в Docker Compose
 	docker compose up -d --build
