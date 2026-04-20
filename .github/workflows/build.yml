@@ -93,6 +93,17 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  hadolint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
   ansible-local:
     runs-on: ubuntu-latest
     steps:
