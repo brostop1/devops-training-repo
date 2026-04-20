@@ -42,6 +42,26 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: pytest -q app/tests
 
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run ruff
+        run: ruff check app
+
   ansible-local:
     runs-on: ubuntu-latest
     steps:
